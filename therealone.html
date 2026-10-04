@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AceMetrics Pro - Top 30 Tennis Serve & Spin Analytics Dashboard</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              green: '#ccff00',
+              dark: '#080c14',
+              card: '#111723',
+              border: '#1f293d',
+              accent: '#1e293b'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #080c14;
+      color: #cbd5e1;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #080c14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f293d;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #ccff00;
+    }
+
+    .glass-panel {
+      background: rgba(17, 23, 35, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(31, 41, 61, 0.85);
+    }
+
+    .neon-glow {
+      box-shadow: 0 0 15px rgba(204, 255, 0, 0.2);
+    }
+
+    .court-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1.85 / 1;
+      background: radial-gradient(circle at center, #131c2d 0%, #060911 100%);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1f293d;
+    }
+
+    #courtTooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 50;
+      transition: opacity 0.12s ease, transform 0.08s ease;
+      transform: translate(-50%, -120%);
+    }
+
+    .avatar-ring {
+      box-shadow: 0 0 0 2px #080c14, 0 0 0 4px #ccff00;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+  <header class="glass-panel sticky top-0 z-40 border-b border-brand-border px-4 lg:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+    <!-- Brand Logo & Title -->
+    <div class="flex items-center gap-3">
+      <div class="bg-gradient-to-br from-brand-green to-yellow-400 p-2.5 rounded-xl text-black font-black flex items-center justify-center shadow-lg shadow-brand-green/20">
+        <svg class="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 13v1c0 1.1.9 2 2 2v3.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+          AceMetrics <span class="text-[10px] bg-brand-green/20 text-brand-green px-2 py-0.5 rounded-full font-bold border border-brand-green/30 tracking-wider">TOP 30 ATP/WTA</span>
+        </h1>
+        <p class="text-xs text-gray-400">Precision Serve Speed, Spin RPM & Placement Visualizer</p>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="flex items-center gap-3 flex-wrap justify-center">
+      <!-- Search Input -->
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-gray-500"></i>
+        <input id="playerSearch" type="text" oninput="filterPlayers()" placeholder="Search player..." class="bg-slate-900 border border-brand-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-green w-36 sm:w-44" />
+      </div>
+
+      <!-- Player Dropdown -->
+      <div class="flex items-center gap-2 bg-slate-900 border border-brand-border rounded-xl px-3 py-1.5">
+        <i class="fa-solid fa-user text-brand-green text-xs"></i>
+        <select id="playerSelect" onchange="onPlayerChange()" class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer max-w-[140px] truncate">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <!-- MPH / KMH Switcher -->
+      <div class="flex items-center bg-slate-900 border border-brand-border rounded-xl p-1">
+        <button id="unitMPH" onclick="setSpeedUnit('MPH')" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-black bg-brand-green">MPH</button>
+        <button id="unitKMH" onclick="setSpeedUnit('KMH')" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-gray-400 hover:text-white">KM/H</button>
+      </div>
+
+      <!-- Log Session Trigger -->
+      <button onclick="openAddServeModal()" class="bg-brand-green hover:bg-yellow-300 text-black font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-brand-green/10 neon-glow">
+        <i class="fa-solid fa-plus text-xs"></i> Log Serves
+      </button>
+    </div>
+  </header>
+
+  <div class="bg-slate-950/80 border-b border-brand-border px-4 py-2.5 overflow-x-auto scrollbar-none flex items-center gap-2">
+    <div class="flex items-center gap-1 shrink-0 mr-1">
+      <button onclick="filterCategory('ALL')" id="catALL" class="cat-btn px-2.5 py-1 text-[11px] font-bold rounded-lg bg-brand-green text-black">All Top 30</button>
+      <button onclick="filterCategory('TOP10')" id="catTOP10" class="cat-btn px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-900 text-gray-400 hover:text-white border border-brand-border">Top 10</button>
+      <button onclick="filterCategory('BOMBERS')" id="catBOMBERS" class="cat-btn px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-900 text-gray-400 hover:text-white border border-brand-border">Big Servers</button>
+    </div>
+    <div class="h-4 w-px bg-brand-border shrink-0"></div>
+    <div id="playerChipsContainer" class="flex items-center gap-2">
+      <!-- Player Chips Dynamically Populated -->
+    </div>
+  </div>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 space-y-6">
+
+    <!-- KPI Metric Cards Grid (8 Cards) -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+      <!-- 1: Serves Tracked -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>Serves Tracked</span>
+          <i class="fa-solid fa-list-check text-brand-green text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpiTotalServes" class="text-xl font-black text-white">0</span>
+          <span id="kpiTournamentBadge" class="text-[9px] text-brand-green font-semibold bg-brand-green/10 px-1 py-0.5 rounded border border-brand-green/20 truncate max-w-[65px]">US Open</span>
+        </div>
+      </div>
+
+      <!-- 2: 1st Serve In % -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>1st Serve In %</span>
+          <i class="fa-solid fa-bullseye text-blue-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi1stIn" class="text-xl font-black text-white">0%</span>
+          <span class="text-[9px] font-semibold text-emerald-400">Tour Top</span>
+        </div>
+      </div>
+
+      <!-- 3: Max Speed -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>Max Speed</span>
+          <i class="fa-solid fa-bolt text-yellow-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpiMaxSpeed" class="text-xl font-black text-white">0</span>
+          <span id="kpiMaxSpeedUnit" class="text-[9px] font-bold text-yellow-400">MPH</span>
+        </div>
+      </div>
+
+      <!-- 4: Avg 1st Speed -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>Avg 1st Speed</span>
+          <i class="fa-solid fa-gauge-high text-indigo-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpiAvg1stSpeed" class="text-xl font-black text-white">0</span>
+          <span id="kpiAvg1stSpeedUnit" class="text-[9px] font-bold text-indigo-400">MPH</span>
+        </div>
+      </div>
+
+      <!-- 5: 1st Serve Spin RPM -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>1st Serve Spin</span>
+          <i class="fa-solid fa-rotate-right text-emerald-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi1stSpin" class="text-xl font-black text-white">0</span>
+          <span class="text-[9px] font-bold text-emerald-400">RPM</span>
+        </div>
+      </div>
+
+      <!-- 6: 2nd Serve Kick Spin -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>2nd Kick Spin</span>
+          <i class="fa-solid fa-arrows-spin text-purple-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi2ndSpin" class="text-xl font-black text-white">0</span>
+          <span class="text-[9px] font-bold text-purple-400">RPM</span>
+        </div>
+      </div>
+
+      <!-- 7: Ace Rate -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>Ace Rate</span>
+          <i class="fa-solid fa-trophy text-brand-green text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpiAceRate" class="text-xl font-black text-white">0%</span>
+          <span id="kpiAceCount" class="text-[9px] text-gray-400 font-medium">0 aces</span>
+        </div>
+      </div>
+
+      <!-- 8: Double Fault % -->
+      <div class="glass-panel p-3 rounded-xl border border-brand-border flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 text-[11px] font-medium">
+          <span>Double Fault %</span>
+          <i class="fa-solid fa-triangle-exclamation text-rose-400 text-xs"></i>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpiDfRate" class="text-xl font-black text-white">0%</span>
+          <span class="text-[9px] text-emerald-400 font-semibold">Low DF</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- Left 8 Cols: 2D Court Visualizer -->
+      <div class="lg:col-span-8 glass-panel p-5 rounded-2xl border border-brand-border space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-fire text-orange-500"></i> Court Serve Placement & Spin Visualizer
+            </h2>
+            <p class="text-xs text-gray-400">Dense serve distribution with hoverable spin RPM and trajectory analysis</p>
+          </div>
+
+          <!-- Heatmap Display Mode Switcher -->
+          <div class="flex items-center gap-1 bg-slate-900 border border-brand-border rounded-lg p-1 text-xs">
+            <button id="modeScatter" onclick="setRenderMode('scatter')" class="px-2.5 py-1 rounded-md font-semibold text-black bg-brand-green transition-all">Shot Dots</button>
+            <button id="modeHeatmap" onclick="setRenderMode('density')" class="px-2.5 py-1 rounded-md font-semibold text-gray-400 hover:text-white transition-all">Heat Glow</button>
+            <button id="modeBoth" onclick="setRenderMode('both')" class="px-2.5 py-1 rounded-md font-semibold text-gray-400 hover:text-white transition-all">Combined</button>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-brand-border/80 text-xs">
+          <div>
+            <label class="block text-[10px] text-gray-400 uppercase font-semibold mb-1">Court Side</label>
+            <select id="filterSide" onchange="applyFilters()" class="w-full bg-slate-900 text-white border border-brand-border rounded-lg px-2 py-1 focus:outline-none">
+              <option value="ALL">All Sides (Deuce & Ad)</option>
+              <option value="DEUCE">Deuce Court (Right)</option>
+              <option value="AD">Ad Court (Left)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-400 uppercase font-semibold mb-1">Serve Type</label>
+            <select id="filterType" onchange="applyFilters()" class="w-full bg-slate-900 text-white border border-brand-border rounded-lg px-2 py-1 focus:outline-none">
+              <option value="ALL">All Serves (1st & 2nd)</option>
+              <option value="1st">1st Serves Only</option>
+              <option value="2nd">2nd Serves Only</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-400 uppercase font-semibold mb-1">Outcome</label>
+            <select id="filterResult" onchange="applyFilters()" class="w-full bg-slate-900 text-white border border-brand-border rounded-lg px-2 py-1 focus:outline-none">
+              <option value="ALL">All Outcomes</option>
+              <option value="ACE">Aces / Winners</option>
+              <option value="IN">In Play (Valid)</option>
+              <option value="OUT">Out (Wide/Long)</option>
+              <option value="NET">Net Faults</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-400 uppercase font-semibold mb-1">Target Zone</label>
+            <select id="filterZone" onchange="applyFilters()" class="w-full bg-slate-900 text-white border border-brand-border rounded-lg px-2 py-1 focus:outline-none">
+              <option value="ALL">All Zones</option>
+              <option value="T">T (Center Line)</option>
+              <option value="BODY">Body Target</option>
+              <option value="WIDE">Wide Angle</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Canvas Court Area -->
+        <div class="court-container" id="courtContainer">
+          <canvas id="courtCanvas" class="w-full h-full block"></canvas>
+
+          <!-- Hover Tooltip -->
+          <div id="courtTooltip" class="hidden glass-panel px-3 py-2 rounded-xl border border-brand-green/40 shadow-2xl text-xs space-y-1">
+            <div class="font-extrabold text-white flex items-center justify-between gap-3">
+              <span id="ttSpeed" class="text-brand-green text-sm">134 MPH</span>
+              <span id="ttType" class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-semibold">1st Serve</span>
+            </div>
+            <div class="text-[11px] text-gray-200 flex justify-between gap-4">
+              <span>Spin Rate: <strong id="ttSpin" class="text-purple-300">2,450 RPM</strong></span>
+              <span>Target: <strong id="ttZone">Wide</strong></span>
+            </div>
+            <div class="text-[10px] text-gray-400 flex justify-between gap-4 border-t border-brand-border/60 pt-1 mt-1">
+              <span>Result: <strong id="ttResult" class="text-emerald-400">Ace</strong></span>
+              <span id="ttMatch" class="italic truncate max-w-[130px] text-gray-300">US Open</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Court Legend -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-gray-400 border-t border-brand-border/60">
+          <div class="flex items-center gap-4 flex-wrap">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> In Play</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-brand-green inline-block shadow-sm shadow-brand-green"></span> Ace</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Out</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Net Fault</span>
+          </div>
+
+          <div class="text-gray-300 font-medium">
+            Showing <span id="visibleServeCount" class="text-brand-green font-bold">0</span> / <span id="totalServeCount">0</span> serves
+          </div>
+        </div>
+      </div>
+
+      <!-- Right 4 Cols: Bio Card & Spin Profile Breakdown -->
+      <div class="lg:col-span-4 space-y-6">
+        <!-- Player Profile Bio -->
+        <div class="glass-panel p-5 rounded-2xl border border-brand-border space-y-4">
+          <div class="flex items-center gap-3.5">
+            <div id="playerAvatar" class="w-13 h-13 rounded-full bg-slate-900 border-2 border-brand-green flex items-center justify-center text-lg font-black text-brand-green p-3 shrink-0 avatar-ring">
+              JS
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 id="playerName" class="text-lg font-black text-white leading-tight">Jannik Sinner</h3>
+                <span id="playerFlag" class="text-sm">🇮🇹</span>
+              </div>
+              <p id="playerBio" class="text-xs text-gray-400 mt-0.5">ATP No. 1 • Right-Handed</p>
+              <div class="mt-1 flex items-center gap-1.5">
+                <span id="playerSpinBadge" class="text-[10px] font-bold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">
+                  Heavy Kick / Topslice
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="p-3 bg-slate-950/80 rounded-xl border border-brand-border/80 space-y-1.5 text-xs">
+            <div class="font-bold text-gray-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-wand-magic-sparkles text-brand-green"></i> Spin & Trajectory Profile
+            </div>
+            <p id="playerDescription" class="text-gray-400 leading-relaxed text-[11px]">
+              Surgical flat serve down the T with high second-serve kick variation. Consistently high first-serve percentage under pressure.
+            </p>
+          </div>
+
+          <!-- Spin Comparison vs ATP Tour Benchmark Bar -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-bold text-gray-300">2nd Serve Kick RPM vs Benchmark</span>
+              <span id="spinVsBenchmarkText" class="text-[11px] font-bold text-purple-300">+250 RPM</span>
+            </div>
+            
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-[10px] text-gray-400">
+                <span>Player Kick Spin</span>
+                <span id="spinValKick" class="font-bold text-purple-400">2,650 RPM</span>
+              </div>
+              <div class="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                <div id="barKickSpin" class="bg-purple-500 h-full rounded-full transition-all" style="width: 75%"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-[10px] text-gray-400">
+                <span>ATP Tour Kick Benchmark</span>
+                <span class="font-bold text-gray-400">2,400 RPM</span>
+              </div>
+              <div class="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                <div class="bg-slate-700 h-full rounded-full" style="width: 65%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Zone Breakdown Bar -->
+          <div class="space-y-2 pt-2 border-t border-brand-border/60">
+            <div class="text-xs font-semibold text-gray-300 flex justify-between">
+              <span>Target Zone Distribution</span>
+              <span class="text-gray-400 text-[10px]">T / Body / Wide</span>
+            </div>
+            <div class="h-2.5 w-full bg-slate-900 rounded-full overflow-hidden flex">
+              <div id="barZoneT" class="bg-blue-500 h-full transition-all" style="width: 45%" title="T Zone"></div>
+              <div id="barZoneBody" class="bg-amber-400 h-full transition-all" style="width: 25%" title="Body Zone"></div>
+              <div id="barZoneWide" class="bg-brand-green h-full transition-all" style="width: 30%" title="Wide Zone"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-gray-400 font-medium">
+              <span class="text-blue-400">T: <strong id="pctZoneT">45%</strong></span>
+              <span class="text-amber-400">Body: <strong id="pctZoneBody">25%</strong></span>
+              <span class="text-brand-green">Wide: <strong id="pctZoneWide">30%</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Doughnut Preference Chart -->
+        <div class="glass-panel p-5 rounded-2xl border border-brand-border space-y-3">
+          <h3 class="text-sm font-bold text-white flex items-center justify-between">
+            <span><i class="fa-solid fa-chart-pie text-brand-green mr-1.5"></i> Zone Placement Doughnut</span>
+          </h3>
+          <div class="h-44 relative flex items-center justify-center">
+            <canvas id="chartZonePie"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Top 30 Speed vs Spin Scatter Plot (7 Cols) -->
+      <div class="lg:col-span-7 glass-panel p-5 rounded-2xl border border-brand-border space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-circle-nodes text-purple-400"></i> Speed vs. Spin RPM Scatter Plot (Top 30)
+            </h3>
+            <p class="text-xs text-gray-400">Comparing 1st serve velocity (MPH) against 2nd serve kick spin (RPM)</p>
+          </div>
+        </div>
+        <div class="h-64 relative">
+          <canvas id="chartScatterSpeedSpin"></canvas>
+        </div>
+      </div>
+
+      <!-- Histogram Breakdown (5 Cols) -->
+      <div class="lg:col-span-5 glass-panel p-5 rounded-2xl border border-brand-border space-y-3">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-simple text-brand-green"></i> Velocity Cluster Histogram
+          </h3>
+          <p class="text-xs text-gray-400">1st vs 2nd serve speed distribution for selected player</p>
+        </div>
+        <div class="h-64 relative">
+          <canvas id="chartSpeedHistogram"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="addServeModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-md rounded-2xl border border-brand-border p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-brand-border/80 pb-3">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-circle-plus text-brand-green"></i> Log Serve Session Data
+        </h3>
+        <button onclick="closeAddServeModal()" class="text-gray-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Target Player</label>
+          <input id="modalPlayerName" type="text" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white font-medium" readonly>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-300 font-semibold mb-1">Generation Mode</label>
+            <select id="modalGenType" onchange="toggleModalFields()" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+              <option value="BULK">Bulk Match Session (50 Serves)</option>
+              <option value="SINGLE">Single Custom Serve Entry</option>
+            </select>
+          </div>
+          <div id="singleTypeContainer" class="hidden">
+            <label class="block text-gray-300 font-semibold mb-1">Serve Type</label>
+            <select id="modalServeType" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+              <option value="1st">1st Serve</option>
+              <option value="2nd">2nd Serve</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="singleFieldsContainer" class="hidden space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-300 font-semibold mb-1">Court Side</label>
+              <select id="modalCourtSide" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+                <option value="DEUCE">Deuce Court</option>
+                <option value="AD">Ad Court</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-gray-300 font-semibold mb-1">Result Outcome</label>
+              <select id="modalResult" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+                <option value="ACE">Ace / Winner</option>
+                <option value="IN">In Play</option>
+                <option value="OUT">Out</option>
+                <option value="NET">Net Fault</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-300 font-semibold mb-1">Speed (MPH)</label>
+              <input id="modalSpeed" type="number" value="130" min="70" max="160" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+            </div>
+            <div>
+              <label class="block text-gray-300 font-semibold mb-1">Spin Rate (RPM)</label>
+              <input id="modalSpin" type="number" value="2450" min="1000" max="4500" class="w-full bg-slate-900 border border-brand-border rounded-lg p-2.5 text-white">
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 bg-brand-green/10 border border-brand-green/20 rounded-xl text-gray-300 text-[11px] leading-relaxed">
+          <i class="fa-solid fa-circle-info text-brand-green mr-1"></i> Adds high-density serve points modelled after recent tournament statistics to update heatmaps and charts instantly.
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeAddServeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-xl font-semibold text-xs">Cancel</button>
+        <button onclick="submitAddServe()" class="px-4 py-2 bg-brand-green hover:bg-yellow-300 text-black rounded-xl font-bold text-xs">Add Serves</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global State Variables
+    let currentUnit = 'MPH';
+    let currentRenderMode = 'scatter';
+    let selectedPlayerKey = 'sinner';
+    let hoveredServePoint = null;
+    let activeCategory = 'ALL';
+
+    // Comprehensive Top 30 ATP/WTA Roster Dataset
+    const PLAYER_PROFILES = {
+      sinner: {
+        name: "Jannik Sinner",
+        flag: "🇮🇹",
+        avatar: "JS",
+        rank: "ATP No. 1",
+        hand: "Right-Handed",
+        tournament: "China Open",
+        category: ["TOP10"],
+        spinProfile: "Heavy Kick / Topslice",
+        bio: "Surgical flat serve down the T with high second-serve kick variation. Consistently high first-serve percentage under pressure.",
+        baseSpeed1st: 130, speedStd1st: 4.5, maxSpeed: 141, baseSpeed2nd: 108, speedStd2nd: 4,
+        spin1st: 2150, spin2nd: 2650,
+        firstServeInPct: 78, aceRate: 18, dfRate: 2.2, ptsWon1st: 83,
+        biasT: 0.52, biasBody: 0.18, biasWide: 0.30, serves: []
+      },
+      zverev: {
+        name: "Alexander Zverev",
+        flag: "🇩🇪",
+        avatar: "AZ",
+        rank: "ATP No. 2",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Pinpoint Topspin",
+        bio: "High 1st serve accuracy with disciplined, deep center box targets and high release point.",
+        baseSpeed1st: 132, speedStd1st: 4, maxSpeed: 143, baseSpeed2nd: 105, speedStd2nd: 4.2,
+        spin1st: 1950, spin2nd: 2450,
+        firstServeInPct: 74, aceRate: 15, dfRate: 2.8, ptsWon1st: 79,
+        biasT: 0.50, biasBody: 0.30, biasWide: 0.20, serves: []
+      },
+      alcaraz: {
+        name: "Carlos Alcaraz",
+        flag: "🇪🇸",
+        avatar: "CA",
+        rank: "ATP No. 3",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Slice & Kick Specialist",
+        bio: "Varied spin profile with heavy slice out wide on Deuce court and high kick targeting opponent backhands.",
+        baseSpeed1st: 126, speedStd1st: 5, maxSpeed: 138, baseSpeed2nd: 103, speedStd2nd: 4.8,
+        spin1st: 2400, spin2nd: 2850,
+        firstServeInPct: 68, aceRate: 14, dfRate: 3.4, ptsWon1st: 78,
+        biasT: 0.36, biasBody: 0.20, biasWide: 0.44, serves: []
+      },
+      shelton: {
+        name: "Ben Shelton",
+        flag: "🇺🇸",
+        avatar: "BS",
+        rank: "ATP No. 13",
+        hand: "Left-Handed",
+        tournament: "US Open",
+        category: ["BOMBERS"],
+        spinProfile: "Explosive Lefty Slice/Kick",
+        bio: "Explosive lefty kick and wide slice trajectory stretching receivers off court on Ad side.",
+        baseSpeed1st: 134, speedStd1st: 5.5, maxSpeed: 150, baseSpeed2nd: 113, speedStd2nd: 6,
+        spin1st: 2250, spin2nd: 2950,
+        firstServeInPct: 64, aceRate: 21, dfRate: 4.5, ptsWon1st: 81,
+        biasT: 0.32, biasBody: 0.18, biasWide: 0.50, serves: []
+      },
+      mpetshi: {
+        name: "Giovanni Mpetshi Perricard",
+        flag: "🇫🇷",
+        avatar: "GMP",
+        rank: "ATP No. 29",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["BOMBERS"],
+        spinProfile: "Flat Missile",
+        bio: "Ultra-heavy power server. High concentration of +145mph flat bombs targeted straight down the T divide.",
+        baseSpeed1st: 139, speedStd1st: 6, maxSpeed: 153, baseSpeed2nd: 118, speedStd2nd: 5.5,
+        spin1st: 1750, spin2nd: 2350,
+        firstServeInPct: 67, aceRate: 26, dfRate: 5.1, ptsWon1st: 85,
+        biasT: 0.58, biasBody: 0.12, biasWide: 0.30, serves: []
+      },
+      djokovic: {
+        name: "Novak Djokovic",
+        flag: "🇷🇸",
+        avatar: "ND",
+        rank: "ATP No. 4",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Precision Corner Placement",
+        bio: "Pinpoint corner placement with minimal speed decay. Highly deceptive toss location.",
+        baseSpeed1st: 122, speedStd1st: 3.5, maxSpeed: 134, baseSpeed2nd: 101, speedStd2nd: 3.5,
+        spin1st: 2300, spin2nd: 2600,
+        firstServeInPct: 71, aceRate: 12, dfRate: 1.9, ptsWon1st: 78,
+        biasT: 0.44, biasBody: 0.16, biasWide: 0.40, serves: []
+      },
+      medvedev: {
+        name: "Daniil Medvedev",
+        flag: "🇷🇺",
+        avatar: "DM",
+        rank: "ATP No. 5",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Flat Skidding Trajectory",
+        bio: "Low trajectory flat serves skidding fast off court surface with deep placement.",
+        baseSpeed1st: 128, speedStd1st: 4.2, maxSpeed: 139, baseSpeed2nd: 107, speedStd2nd: 5,
+        spin1st: 1850, spin2nd: 2250,
+        firstServeInPct: 65, aceRate: 16, dfRate: 5.4, ptsWon1st: 79,
+        biasT: 0.50, biasBody: 0.25, biasWide: 0.25, serves: []
+      },
+      deminaur: {
+        name: "Alex de Minaur",
+        flag: "🇦🇺",
+        avatar: "ADM",
+        rank: "ATP No. 6",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "High Topsin Consistency",
+        bio: "Fast acceleration with reliable 1st serve placement, setting up immediate baseline offense.",
+        baseSpeed1st: 121, speedStd1st: 3.8, maxSpeed: 131, baseSpeed2nd: 100, speedStd2nd: 3.5,
+        spin1st: 2100, spin2nd: 2550,
+        firstServeInPct: 69, aceRate: 9, dfRate: 2.1, ptsWon1st: 75,
+        biasT: 0.42, biasBody: 0.28, biasWide: 0.30, serves: []
+      },
+      rublev: {
+        name: "Andrey Rublev",
+        flag: "🇷🇺",
+        avatar: "AR",
+        rank: "ATP No. 7",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Heavy Flat Drive",
+        bio: "Aggressive first serve drive looking for short middle-court returns to unleash forehand winners.",
+        baseSpeed1st: 127, speedStd1st: 4.0, maxSpeed: 137, baseSpeed2nd: 102, speedStd2nd: 4.1,
+        spin1st: 2050, spin2nd: 2400,
+        firstServeInPct: 66, aceRate: 13, dfRate: 3.0, ptsWon1st: 77,
+        biasT: 0.48, biasBody: 0.22, biasWide: 0.30, serves: []
+      },
+      ruud: {
+        name: "Casper Ruud",
+        flag: "🇳🇴",
+        avatar: "CR",
+        rank: "ATP No. 8",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Heavy Topspin Kick",
+        bio: "High RPM topspin rotation creating massive bounce height off clay and hard court surfaces.",
+        baseSpeed1st: 123, speedStd1st: 3.9, maxSpeed: 135, baseSpeed2nd: 99, speedStd2nd: 3.8,
+        spin1st: 2500, spin2nd: 2900,
+        firstServeInPct: 68, aceRate: 11, dfRate: 2.3, ptsWon1st: 76,
+        biasT: 0.38, biasBody: 0.22, biasWide: 0.40, serves: []
+      },
+      fritz: {
+        name: "Taylor Fritz",
+        flag: "🇺🇸",
+        avatar: "TF",
+        rank: "ATP No. 9",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10", "BOMBERS"],
+        spinProfile: "Heavy Flat Drive",
+        bio: "Heavy flat first serve through court center with aggressive body serve variations.",
+        baseSpeed1st: 131, speedStd1st: 4.5, maxSpeed: 142, baseSpeed2nd: 106, speedStd2nd: 4,
+        spin1st: 2000, spin2nd: 2450,
+        firstServeInPct: 66, aceRate: 17, dfRate: 3.1, ptsWon1st: 79,
+        biasT: 0.46, biasBody: 0.24, biasWide: 0.30, serves: []
+      },
+      paul: {
+        name: "Tommy Paul",
+        flag: "🇺🇸",
+        avatar: "TP",
+        rank: "ATP No. 10",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Tactical Slice",
+        bio: "Deceptive body serve placement coupled with wide slice on key pressure points.",
+        baseSpeed1st: 124, speedStd1st: 4.1, maxSpeed: 135, baseSpeed2nd: 101, speedStd2nd: 3.9,
+        spin1st: 2200, spin2nd: 2600,
+        firstServeInPct: 67, aceRate: 10, dfRate: 2.6, ptsWon1st: 74,
+        biasT: 0.40, biasBody: 0.25, biasWide: 0.35, serves: []
+      },
+      tsitsipas: {
+        name: "Stefanos Tsitsipas",
+        flag: "🇬🇷",
+        avatar: "ST",
+        rank: "ATP No. 11",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Topspin Kick Angle",
+        bio: "High kicking serve out wide on Ad court opening up the forehand drive on +1 shot.",
+        baseSpeed1st: 128, speedStd1st: 4.3, maxSpeed: 139, baseSpeed2nd: 104, speedStd2nd: 4.2,
+        spin1st: 2300, spin2nd: 2750,
+        firstServeInPct: 65, aceRate: 15, dfRate: 3.5, ptsWon1st: 78,
+        biasT: 0.42, biasBody: 0.18, biasWide: 0.40, serves: []
+      },
+      hurkacz: {
+        name: "Hubert Hurkacz",
+        flag: "🇵🇱",
+        avatar: "HH",
+        rank: "ATP No. 12",
+        hand: "Right-Handed",
+        tournament: "Cincinnati Masters",
+        category: ["BOMBERS"],
+        spinProfile: "Steep Flat Bomb",
+        bio: "Steep downward trajectory generating high ace volume down the T on both courts.",
+        baseSpeed1st: 134, speedStd1st: 4.8, maxSpeed: 145, baseSpeed2nd: 111, speedStd2nd: 4.2,
+        spin1st: 1900, spin2nd: 2400,
+        firstServeInPct: 68, aceRate: 22, dfRate: 2.9, ptsWon1st: 82,
+        biasT: 0.54, biasBody: 0.16, biasWide: 0.30, serves: []
+      },
+      tiafoe: {
+        name: "Frances Tiafoe",
+        flag: "🇺🇸",
+        avatar: "FT",
+        rank: "ATP No. 14",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Heavy Kick & Slice",
+        bio: "Unorthodox motion with high spin variation forcing deep return positions.",
+        baseSpeed1st: 126, speedStd1st: 4.6, maxSpeed: 138, baseSpeed2nd: 102, speedStd2nd: 4.5,
+        spin1st: 2350, spin2nd: 2800,
+        firstServeInPct: 63, aceRate: 13, dfRate: 3.2, ptsWon1st: 76,
+        biasT: 0.40, biasBody: 0.22, biasWide: 0.38, serves: []
+      },
+      musetti: {
+        name: "Lorenzo Musetti",
+        flag: "🇮🇹",
+        avatar: "LM",
+        rank: "ATP No. 15",
+        hand: "Right-Handed",
+        tournament: "Wimbledon",
+        category: [],
+        spinProfile: "Heavy Topspin Curve",
+        bio: "Curving slice trajectory on Deuce side mixed with high kick trajectory.",
+        baseSpeed1st: 122, speedStd1st: 4.0, maxSpeed: 133, baseSpeed2nd: 98, speedStd2nd: 3.8,
+        spin1st: 2450, spin2nd: 2850,
+        firstServeInPct: 66, aceRate: 9, dfRate: 2.7, ptsWon1st: 73,
+        biasT: 0.35, biasBody: 0.25, biasWide: 0.40, serves: []
+      },
+      fils: {
+        name: "Arthur Fils",
+        flag: "🇫🇷",
+        avatar: "AF",
+        rank: "ATP No. 16",
+        hand: "Right-Handed",
+        tournament: "Tokyo",
+        category: ["BOMBERS"],
+        spinProfile: "Power Drive Flat",
+        bio: "Dynamic explosive leg drive generating massive power through the contact point.",
+        baseSpeed1st: 131, speedStd1st: 5.0, maxSpeed: 144, baseSpeed2nd: 106, speedStd2nd: 4.8,
+        spin1st: 2100, spin2nd: 2600,
+        firstServeInPct: 62, aceRate: 16, dfRate: 4.1, ptsWon1st: 77,
+        biasT: 0.48, biasBody: 0.20, biasWide: 0.32, serves: []
+      },
+      auger: {
+        name: "Felix Auger-Aliassime",
+        flag: "🇨🇦",
+        avatar: "FAA",
+        rank: "ATP No. 17",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["BOMBERS"],
+        spinProfile: "Heavy Power Flat",
+        bio: "High elevation release point delivering heavy flat 1st serves down the middle line.",
+        baseSpeed1st: 132, speedStd1st: 4.8, maxSpeed: 143, baseSpeed2nd: 107, speedStd2nd: 4.6,
+        spin1st: 2050, spin2nd: 2500,
+        firstServeInPct: 64, aceRate: 18, dfRate: 3.8, ptsWon1st: 78,
+        biasT: 0.52, biasBody: 0.18, biasWide: 0.30, serves: []
+      },
+      bublik: {
+        name: "Alexander Bublik",
+        flag: "🇰🇿",
+        avatar: "AB",
+        rank: "ATP No. 18",
+        hand: "Right-Handed",
+        tournament: "Halle",
+        category: ["BOMBERS"],
+        spinProfile: "High-Risk Power & Underarm",
+        bio: "High variance server hitting second serves over 135mph mixed with underarm trick serves.",
+        baseSpeed1st: 135, speedStd1st: 7.0, maxSpeed: 147, baseSpeed2nd: 115, speedStd2nd: 8.0,
+        spin1st: 1950, spin2nd: 2500,
+        firstServeInPct: 58, aceRate: 23, dfRate: 7.2, ptsWon1st: 80,
+        biasT: 0.45, biasBody: 0.15, biasWide: 0.40, serves: []
+      },
+      khachanov: {
+        name: "Karen Khachanov",
+        flag: "🇷🇺",
+        avatar: "KK",
+        rank: "ATP No. 19",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Flat & Topslice Drive",
+        bio: "Consistently deep first serve targeting backhand receivers on both court sides.",
+        baseSpeed1st: 129, speedStd1st: 4.2, maxSpeed: 139, baseSpeed2nd: 104, speedStd2nd: 4.0,
+        spin1st: 2100, spin2nd: 2450,
+        firstServeInPct: 67, aceRate: 14, dfRate: 2.8, ptsWon1st: 76,
+        biasT: 0.46, biasBody: 0.22, biasWide: 0.32, serves: []
+      },
+      lehecka: {
+        name: "Jiri Lehecka",
+        flag: "🇨🇿",
+        avatar: "JL",
+        rank: "ATP No. 20",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Flat Power Slice",
+        bio: "Compact racquet motion delivering penetrating flat first serves with low clearance.",
+        baseSpeed1st: 130, speedStd1st: 4.5, maxSpeed: 141, baseSpeed2nd: 105, speedStd2nd: 4.3,
+        spin1st: 2000, spin2nd: 2400,
+        firstServeInPct: 65, aceRate: 15, dfRate: 3.3, ptsWon1st: 77,
+        biasT: 0.48, biasBody: 0.20, biasWide: 0.32, serves: []
+      },
+      cerundolo: {
+        name: "Francisco Cerundolo",
+        flag: "🇦🇷",
+        avatar: "FC",
+        rank: "ATP No. 21",
+        hand: "Right-Handed",
+        tournament: "Roland Garros",
+        category: [],
+        spinProfile: "Heavy Clay Kick",
+        bio: "High RPM topspin kick serve designed to open up heavy forehand baseline attacks.",
+        baseSpeed1st: 121, speedStd1st: 4.0, maxSpeed: 132, baseSpeed2nd: 97, speedStd2nd: 3.8,
+        spin1st: 2500, spin2nd: 2950,
+        firstServeInPct: 64, aceRate: 8, dfRate: 3.1, ptsWon1st: 72,
+        biasT: 0.36, biasBody: 0.24, biasWide: 0.40, serves: []
+      },
+      cobolli: {
+        name: "Flavio Cobolli",
+        flag: "🇮🇹",
+        avatar: "FCO",
+        rank: "ATP No. 22",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Topspin Kick Angle",
+        bio: "Rapid acceleration with sharp kick out wide to opponent backhand corner.",
+        baseSpeed1st: 125, speedStd1st: 4.4, maxSpeed: 136, baseSpeed2nd: 101, speedStd2nd: 4.1,
+        spin1st: 2300, spin2nd: 2700,
+        firstServeInPct: 63, aceRate: 11, dfRate: 3.4, ptsWon1st: 74,
+        biasT: 0.40, biasBody: 0.22, biasWide: 0.38, serves: []
+      },
+      nakashima: {
+        name: "Brandon Nakashima",
+        flag: "🇺🇸",
+        avatar: "BN",
+        rank: "ATP No. 23",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Balanced Placement",
+        bio: "High technical discipline with low double-fault rate and clean corner placement.",
+        baseSpeed1st: 125, speedStd1st: 3.7, maxSpeed: 136, baseSpeed2nd: 102, speedStd2nd: 3.6,
+        spin1st: 2200, spin2nd: 2550,
+        firstServeInPct: 69, aceRate: 12, dfRate: 1.8, ptsWon1st: 76,
+        biasT: 0.44, biasBody: 0.26, biasWide: 0.30, serves: []
+      },
+      fokina: {
+        name: "Alejandro Davidovich Fokina",
+        flag: "🇪🇸",
+        avatar: "ADF",
+        rank: "ATP No. 24",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Slice & Kick Blend",
+        bio: "Unpredictable target distribution mixed with deceptive underarm drop serve attempts.",
+        baseSpeed1st: 123, speedStd1st: 4.2, maxSpeed: 134, baseSpeed2nd: 99, speedStd2nd: 4.0,
+        spin1st: 2350, spin2nd: 2750,
+        firstServeInPct: 62, aceRate: 10, dfRate: 3.9, ptsWon1st: 72,
+        biasT: 0.38, biasBody: 0.22, biasWide: 0.40, serves: []
+      },
+      mensik: {
+        name: "Jakub Mensik",
+        flag: "🇨🇿",
+        avatar: "JM",
+        rank: "ATP No. 25",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["BOMBERS"],
+        spinProfile: "NextGen Power Flat",
+        bio: "Tall NextGen server unleashing heavy flat serves reaching +140mph in key moments.",
+        baseSpeed1st: 131, speedStd1st: 5.2, maxSpeed: 143, baseSpeed2nd: 107, speedStd2nd: 4.9,
+        spin1st: 2050, spin2nd: 2500,
+        firstServeInPct: 63, aceRate: 17, dfRate: 3.7, ptsWon1st: 78,
+        biasT: 0.50, biasBody: 0.18, biasWide: 0.32, serves: []
+      },
+      tien: {
+        name: "Learner Tien",
+        flag: "🇺🇸",
+        avatar: "LT",
+        rank: "ATP Tour Pro",
+        hand: "Left-Handed",
+        tournament: "US Open",
+        category: [],
+        spinProfile: "Lefty Slice Specialist",
+        bio: "Precision lefty slice pulling right-handed opponents wide outside the Deuce court line.",
+        baseSpeed1st: 119, speedStd1st: 3.6, maxSpeed: 128, baseSpeed2nd: 96, speedStd2nd: 3.4,
+        spin1st: 2500, spin2nd: 2850,
+        firstServeInPct: 70, aceRate: 7, dfRate: 2.1, ptsWon1st: 71,
+        biasT: 0.32, biasBody: 0.20, biasWide: 0.48, serves: []
+      },
+      etcheverry: {
+        name: "Tomas Martin Etcheverry",
+        flag: "🇦🇷",
+        avatar: "TME",
+        rank: "ATP No. 27",
+        hand: "Right-Handed",
+        tournament: "Roland Garros",
+        category: [],
+        spinProfile: "Heavy Kick Serve",
+        bio: "High topspin arc bouncing deep into opponent backhand court zones.",
+        baseSpeed1st: 124, speedStd1st: 4.1, maxSpeed: 135, baseSpeed2nd: 100, speedStd2nd: 3.9,
+        spin1st: 2400, spin2nd: 2850,
+        firstServeInPct: 65, aceRate: 11, dfRate: 2.9, ptsWon1st: 74,
+        biasT: 0.40, biasBody: 0.22, biasWide: 0.38, serves: []
+      },
+      fonseca: {
+        name: "Joao Fonseca",
+        flag: "🇧🇷",
+        avatar: "JF",
+        rank: "ATP NextGen Star",
+        hand: "Right-Handed",
+        tournament: "Rio Open",
+        category: ["BOMBERS"],
+        spinProfile: "Explosive Acceleration",
+        bio: "Phenomenal racquet head speed generating high velocity flat drives with heavy topspin.",
+        baseSpeed1st: 130, speedStd1st: 5.5, maxSpeed: 142, baseSpeed2nd: 105, speedStd2nd: 5.0,
+        spin1st: 2200, spin2nd: 2700,
+        firstServeInPct: 61, aceRate: 15, dfRate: 4.2, ptsWon1st: 76,
+        biasT: 0.45, biasBody: 0.20, biasWide: 0.35, serves: []
+      },
+      kyrgios: {
+        name: "Nick Kyrgios",
+        flag: "🇦🇺",
+        avatar: "NK",
+        rank: "ATP Tour Star",
+        hand: "Right-Handed",
+        tournament: "Wimbledon",
+        category: ["BOMBERS"],
+        spinProfile: "Unpredictable Power & Spin",
+        bio: "Rapid toss release with high velocity variation and deceptive underarm serves.",
+        baseSpeed1st: 135, speedStd1st: 6.5, maxSpeed: 148, baseSpeed2nd: 114, speedStd2nd: 7,
+        spin1st: 2100, spin2nd: 2650,
+        firstServeInPct: 66, aceRate: 23, dfRate: 4.2, ptsWon1st: 82,
+        biasT: 0.45, biasBody: 0.15, biasWide: 0.40, serves: []
+      },
+      swiatek: {
+        name: "Iga Świątek",
+        flag: "🇵🇱",
+        avatar: "IS",
+        rank: "WTA No. 1",
+        hand: "Right-Handed",
+        tournament: "US Open",
+        category: ["TOP10"],
+        spinProfile: "Heavy Topspin Kick",
+        bio: "Heavy topspin kick second serve cluster pattern jumping high into backhand exchange.",
+        baseSpeed1st: 112, speedStd1st: 3.8, maxSpeed: 122, baseSpeed2nd: 93, speedStd2nd: 3.5,
+        spin1st: 2600, spin2nd: 3100,
+        firstServeInPct: 70, aceRate: 7, dfRate: 2.4, ptsWon1st: 74,
+        biasT: 0.38, biasBody: 0.22, biasWide: 0.40, serves: []
+      }
+    };
+
+    function randomNormal(mean, stdDev) {
+      let u = 0, v = 0;
+      while(u === 0) u = Math.random();
+      while(v === 0) v = Math.random();
+      let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      return mean + num * stdDev;
+    }
+
+    function generatePlayerServeDataset(playerKey) {
+      const p = PLAYER_PROFILES[playerKey];
+      const count = 80 + Math.floor(Math.random() * 20); // Dense serve dataset (80-100 serves)
+      const serves = [];
+
+      for (let i = 0; i < count; i++) {
+        const isFirstServe = Math.random() < (p.firstServeInPct / 100);
+        const type = isFirstServe ? '1st' : '2nd';
+        const side = Math.random() < 0.5 ? 'DEUCE' : 'AD';
+
+        const rZone = Math.random();
+        let zone = 'T';
+        if (rZone < p.biasT) zone = 'T';
+        else if (rZone < p.biasT + p.biasBody) zone = 'BODY';
+        else zone = 'WIDE';
+
+        let targetX;
+        if (side === 'DEUCE') {
+          if (zone === 'T') targetX = 0.46;
+          else if (zone === 'BODY') targetX = 0.27;
+          else targetX = 0.09;
+        } else {
+          if (zone === 'T') targetX = 0.54;
+          else if (zone === 'BODY') targetX = 0.73;
+          else targetX = 0.91;
+        }
+
+        const targetY = 0.73 + Math.random() * 0.11;
+
+        const scatterX = randomNormal(0, isFirstServe ? 0.025 : 0.034);
+        const scatterY = randomNormal(0, isFirstServe ? 0.030 : 0.040);
+
+        const x = targetX + scatterX;
+        const y = targetY + scatterY;
+
+        let result = 'IN';
+        const inBoxX = (side === 'DEUCE') ? (x >= 0.04 && x <= 0.50) : (x >= 0.50 && x <= 0.96);
+        const inBoxY = (y >= 0.15 && y <= 0.86);
+
+        if (!inBoxX || !inBoxY) {
+          result = y < 0.15 ? 'NET' : 'OUT';
+        } else {
+          if (Math.random() * 100 < p.aceRate * (isFirstServe ? 1.2 : 0.2)) {
+            result = 'ACE';
+          } else {
+            result = 'IN';
+          }
+        }
+
+        let speed = isFirstServe ? 
+          randomNormal(p.baseSpeed1st, p.speedStd1st) : 
+          randomNormal(p.baseSpeed2nd, p.speedStd2nd);
+        speed = Math.min(p.maxSpeed, Math.max(70, Math.round(speed)));
+
+        let spin = isFirstServe ? 
+          randomNormal(p.spin1st, 160) : 
+          randomNormal(p.spin2nd, 210);
+
+        serves.push({
+          id: i + 1,
+          type: type,
+          side: side,
+          zone: zone,
+          result: result,
+          x: Math.max(0.01, Math.min(0.99, x)),
+          y: Math.max(0.02, Math.min(0.98, y)),
+          speedMPH: speed,
+          spinRPM: Math.round(spin),
+          match: p.tournament
+        });
+      }
+
+      p.serves = serves;
+    }
+
+    // Generate datasets
+    Object.keys(PLAYER_PROFILES).forEach(generatePlayerServeDataset);
+
+    let chartZonePieInstance = null;
+    let chartSpeedHistInstance = null;
+    let chartScatterInstance = null;
+
+    function initCharts() {
+      // 1. Doughnut Chart
+      const ctxPie = document.getElementById('chartZonePie').getContext('2d');
+      chartZonePieInstance = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+          labels: ['T Divide', 'Body Target', 'Wide Angle'],
+          datasets: [{
+            data: [45, 25, 30],
+            backgroundColor: ['#3b82f6', '#f59e0b', '#ccff00'],
+            borderWidth: 2,
+            borderColor: '#111723'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#94a3b8', font: { size: 10, family: 'Inter' } }
+            }
+          },
+          cutout: '68%'
+        }
+      });
+
+      // 2. Histogram Chart
+      const ctxHist = document.getElementById('chartSpeedHistogram').getContext('2d');
+      chartSpeedHistInstance = new Chart(ctxHist, {
+        type: 'bar',
+        data: {
+          labels: ['80-90', '90-100', '100-110', '110-120', '120-130', '130-140', '140+'],
+          datasets: [
+            {
+              label: '1st Serves',
+              data: [0, 2, 8, 25, 65, 80, 20],
+              backgroundColor: 'rgba(204, 255, 0, 0.85)',
+              borderRadius: 4
+            },
+            {
+              label: '2nd Serves',
+              data: [5, 25, 60, 15, 2, 0, 0],
+              backgroundColor: 'rgba(59, 130, 246, 0.85)',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          },
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 10 } } }
+          }
+        }
+      });
+
+      // 3. Top 30 Speed vs Spin Scatter Plot
+      const ctxScatter = document.getElementById('chartScatterSpeedSpin').getContext('2d');
+      const scatterPoints = Object.keys(PLAYER_PROFILES).map(key => {
+        const p = PLAYER_PROFILES[key];
+        return {
+          x: p.baseSpeed1st,
+          y: p.spin2nd,
+          label: p.name
+        };
+      });
+
+      chartScatterInstance = new Chart(ctxScatter, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Top 30 Players (Avg 1st Speed vs 2nd Kick Spin)',
+            data: scatterPoints,
+            backgroundColor: '#ccff00',
+            pointRadius: 6,
+            pointHoverRadius: 9
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: 'Avg 1st Serve Speed (MPH)', color: '#94a3b8', font: { size: 10 } },
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(255,255,255,0.05)' }
+            },
+            y: {
+              title: { display: true, text: '2nd Serve Kick Spin (RPM)', color: '#94a3b8', font: { size: 10 } },
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(255,255,255,0.05)' }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const pt = ctx.raw;
+                  return `${pt.label}: ${pt.x} MPH | ${pt.y} RPM`;
+                }
+              }
+            },
+            legend: { labels: { color: '#94a3b8', font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    const canvas = document.getElementById('courtCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const container = document.getElementById('courtContainer');
+      canvas.width = container.clientWidth * window.devicePixelRatio;
+      canvas.height = container.clientHeight * window.devicePixelRatio;
+      renderCourt();
+    }
+
+    function renderCourt() {
+      if (!canvas.width || !canvas.height) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const padX = w * 0.06;
+      const padY = h * 0.12;
+      const courtWidth = w - (padX * 2);
+      const courtHeight = h - (padY * 2);
+
+      // Court Surface Fill
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(padX, padY, courtWidth, courtHeight);
+
+      // Service Boxes Fill
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(padX, padY + courtHeight * 0.15, courtWidth, courtHeight * 0.70);
+
+      // Lines Setup
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = Math.max(2, 2.5 * window.devicePixelRatio);
+      ctx.lineCap = 'round';
+
+      ctx.strokeRect(padX, padY, courtWidth, courtHeight);
+
+      // Net Line
+      const netY = padY + courtHeight * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(padX - 8, netY);
+      ctx.lineTo(padX + courtWidth + 8, netY);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = Math.max(3, 4 * window.devicePixelRatio);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = Math.max(2, 2.5 * window.devicePixelRatio);
+
+      // Service Line
+      const serviceLineY = padY + courtHeight * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(padX, serviceLineY);
+      ctx.lineTo(padX + courtWidth, serviceLineY);
+      ctx.stroke();
+
+      // Center Divide Line
+      const centerT_X = padX + courtWidth * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(centerT_X, netY);
+      ctx.lineTo(centerT_X, serviceLineY);
+      ctx.stroke();
+
+      // Center Baseline Hash
+      ctx.beginPath();
+      ctx.moveTo(centerT_X, padY + courtHeight);
+      ctx.lineTo(centerT_X, padY + courtHeight - (courtHeight * 0.04));
+      ctx.stroke();
+
+      // Court Side Text Labels
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
+      ctx.font = `bold ${Math.round(11 * window.devicePixelRatio)}px Inter`;
+      ctx.textAlign = 'center';
+      ctx.fillText("DEUCE COURT (RIGHT)", padX + courtWidth * 0.25, padY + courtHeight * 0.08);
+      ctx.fillText("AD COURT (LEFT)", padX + courtWidth * 0.75, padY + courtHeight * 0.08);
+
+      const filteredServes = getFilteredServes();
+      document.getElementById('visibleServeCount').innerText = filteredServes.length;
+
+      if (currentRenderMode === 'density' || currentRenderMode === 'both') {
+        renderDensityHeatmap(filteredServes, padX, padY, courtWidth, courtHeight);
+      }
+
+      if (currentRenderMode === 'scatter' || currentRenderMode === 'both') {
+        renderScatterPoints(filteredServes, padX, padY, courtWidth, courtHeight);
+      }
+    }
+
+    function renderDensityHeatmap(serves, padX, padY, cW, cH) {
+      ctx.save();
+      serves.forEach(s => {
+        const px = padX + (s.x * cW);
+        const py = padY + (s.y * cH);
+
+        const radius = Math.max(20, 28 * window.devicePixelRatio);
+        const gradient = ctx.createRadialGradient(px, py, 0, px, py, radius);
+
+        if (s.result === 'ACE') {
+          gradient.addColorStop(0, 'rgba(204, 255, 0, 0.38)');
+          gradient.addColorStop(1, 'rgba(204, 255, 0, 0)');
+        } else if (s.result === 'IN') {
+          gradient.addColorStop(0, 'rgba(52, 211, 153, 0.32)');
+          gradient.addColorStop(1, 'rgba(52, 211, 153, 0)');
+        } else {
+          gradient.addColorStop(0, 'rgba(244, 63, 94, 0.28)');
+          gradient.addColorStop(1, 'rgba(244, 63, 94, 0)');
+        }
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function renderScatterPoints(serves, padX, padY, cW, cH) {
+      const pointRadius = Math.max(3.8, 4.8 * window.devicePixelRatio);
+
+      serves.forEach(s => {
+        const px = padX + (s.x * cW);
+        const py = padY + (s.y * cH);
+
+        ctx.beginPath();
+        ctx.arc(px, py, pointRadius, 0, Math.PI * 2);
+
+        if (s.result === 'ACE') {
+          ctx.fillStyle = '#ccff00';
+          ctx.shadowColor = '#ccff00';
+          ctx.shadowBlur = 8;
+        } else if (s.result === 'IN') {
+          ctx.fillStyle = '#10b981';
+          ctx.shadowBlur = 0;
+        } else if (s.result === 'OUT') {
+          ctx.fillStyle = '#f43f5e';
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = '#fbbf24';
+          ctx.shadowBlur = 0;
+        }
+
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (hoveredServePoint && hoveredServePoint.id === s.id) {
+          ctx.beginPath();
+          ctx.arc(px, py, pointRadius * 2.2, 0, Math.PI * 2);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+        }
+      });
+      ctx.shadowBlur = 0;
+    }
+
+    function setupCanvasInteractions() {
+      const container = document.getElementById('courtContainer');
+      const tooltip = document.getElementById('courtTooltip');
+
+      container.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+        const padX = canvas.width * 0.06;
+        const padY = canvas.height * 0.12;
+        const cW = canvas.width - (padX * 2);
+        const cH = canvas.height - (padY * 2);
+
+        const serves = getFilteredServes();
+        let closest = null;
+        let minDist = Infinity;
+        const threshold = 18 * window.devicePixelRatio;
+
+        serves.forEach(s => {
+          const px = padX + (s.x * cW);
+          const py = padY + (s.y * cH);
+          const dist = Math.hypot(px - mouseX, py - mouseY);
+          if (dist < minDist && dist < threshold) {
+            minDist = dist;
+            closest = s;
+          }
+        });
+
+        if (closest) {
+          hoveredServePoint = closest;
+
+          const dispSpeed = currentUnit === 'MPH' ? 
+            `${closest.speedMPH} MPH` : 
+            `${Math.round(closest.speedMPH * 1.60934)} KM/H`;
+
+          document.getElementById('ttSpeed').innerText = dispSpeed;
+          document.getElementById('ttType').innerText = `${closest.type} Serve`;
+          document.getElementById('ttSpin').innerText = `${closest.spinRPM} RPM`;
+          document.getElementById('ttZone').innerText = closest.zone;
+          document.getElementById('ttResult').innerText = closest.result;
+          document.getElementById('ttMatch').innerText = closest.match;
+
+          const relX = e.clientX - rect.left;
+          const relY = e.clientY - rect.top;
+          tooltip.style.left = `${relX}px`;
+          tooltip.style.top = `${relY}px`;
+          tooltip.classList.remove('hidden');
+
+          renderCourt();
+        } else {
+          if (hoveredServePoint) {
+            hoveredServePoint = null;
+            tooltip.classList.add('hidden');
+            renderCourt();
+          }
+        }
+      });
+
+      container.addEventListener('mouseleave', () => {
+        hoveredServePoint = null;
+        tooltip.classList.add('hidden');
+        renderCourt();
+      });
+    }
+
+    function getFilteredServes() {
+      const p = PLAYER_PROFILES[selectedPlayerKey];
+      if (!p) return [];
+
+      const side = document.getElementById('filterSide').value;
+      const type = document.getElementById('filterType').value;
+      const res = document.getElementById('filterResult').value;
+      const zone = document.getElementById('filterZone').value;
+
+      return p.serves.filter(s => {
+        if (side !== 'ALL' && s.side !== side) return false;
+        if (type !== 'ALL' && s.type !== type) return false;
+        if (res !== 'ALL' && s.result !== res) return false;
+        if (zone !== 'ALL' && s.zone !== zone) return false;
+        return true;
+      });
+    }
+
+    function applyFilters() {
+      renderCourt();
+      updateZoneBreakdownStats();
+    }
+
+    function setRenderMode(mode) {
+      currentRenderMode = mode;
+      document.getElementById('modeScatter').className = mode === 'scatter' ? 'px-2.5 py-1 rounded-md font-semibold text-black bg-brand-green transition-all' : 'px-2.5 py-1 rounded-md font-semibold text-gray-400 hover:text-white transition-all';
+      document.getElementById('modeHeatmap').className = mode === 'density' ? 'px-2.5 py-1 rounded-md font-semibold text-black bg-brand-green transition-all' : 'px-2.5 py-1 rounded-md font-semibold text-gray-400 hover:text-white transition-all';
+      document.getElementById('modeBoth').className = mode === 'both' ? 'px-2.5 py-1 rounded-md font-semibold text-black bg-brand-green transition-all' : 'px-2.5 py-1 rounded-md font-semibold text-gray-400 hover:text-white transition-all';
+      renderCourt();
+    }
+
+    function setSpeedUnit(unit) {
+      currentUnit = unit;
+      document.getElementById('unitMPH').className = unit === 'MPH' ? 'px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-black bg-brand-green' : 'px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-gray-400 hover:text-white';
+      document.getElementById('unitKMH').className = unit === 'KMH' ? 'px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-black bg-brand-green' : 'px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-gray-400 hover:text-white';
+      
+      updateDashboardData();
+    }
+
+    function onPlayerChange(keyFromChip) {
+      if (keyFromChip) {
+        selectedPlayerKey = keyFromChip;
+        document.getElementById('playerSelect').value = keyFromChip;
+      } else {
+        selectedPlayerKey = document.getElementById('playerSelect').value;
+      }
+      updatePlayerChips();
+      updateDashboardData();
+    }
+
+    function filterCategory(cat) {
+      activeCategory = cat;
+      ['catALL', 'catTOP10', 'catBOMBERS'].forEach(id => {
+        const btn = document.getElementById(id);
+        const isActive = id === 'cat' + cat;
+        btn.className = isActive ? 
+          'cat-btn px-2.5 py-1 text-[11px] font-bold rounded-lg bg-brand-green text-black' : 
+          'cat-btn px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-900 text-gray-400 hover:text-white border border-brand-border';
+      });
+      populatePlayerDropdown();
+      updatePlayerChips();
+    }
+
+    function filterPlayers() {
+      populatePlayerDropdown();
+      updatePlayerChips();
+    }
+
+    function populatePlayerDropdown() {
+      const select = document.getElementById('playerSelect');
+      const searchTerm = document.getElementById('playerSearch').value.toLowerCase();
+      select.innerHTML = '';
+
+      Object.keys(PLAYER_PROFILES).forEach(key => {
+        const p = PLAYER_PROFILES[key];
+        const matchesCat = activeCategory === 'ALL' || (p.category && p.category.includes(activeCategory));
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm);
+
+        if (matchesCat && matchesSearch) {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.innerText = `${p.flag} ${p.name}`;
+          select.appendChild(opt);
+        }
+      });
+
+      if (select.options.length > 0) {
+        if (!Array.from(select.options).some(o => o.value === selectedPlayerKey)) {
+          selectedPlayerKey = select.options[0].value;
+        }
+        select.value = selectedPlayerKey;
+      }
+    }
+
+    function updatePlayerChips() {
+      const container = document.getElementById('playerChipsContainer');
+      const searchTerm = document.getElementById('playerSearch').value.toLowerCase();
+      container.innerHTML = '';
+
+      Object.keys(PLAYER_PROFILES).forEach(key => {
+        const p = PLAYER_PROFILES[key];
+        const matchesCat = activeCategory === 'ALL' || (p.category && p.category.includes(activeCategory));
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm);
+
+        if (matchesCat && matchesSearch) {
+          const isSelected = key === selectedPlayerKey;
+          const chip = document.createElement('button');
+          chip.onclick = () => onPlayerChange(key);
+          chip.className = `px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+            isSelected ? 'bg-brand-green text-black shadow-md shadow-brand-green/20' : 'bg-slate-900 text-gray-400 hover:text-white border border-brand-border'
+          }`;
+          chip.innerHTML = `<span>${p.flag}</span> <span>${p.name.split(' ').pop()}</span>`;
+          container.appendChild(chip);
+        }
+      });
+    }
+
+    function updateDashboardData() {
+      const p = PLAYER_PROFILES[selectedPlayerKey];
+      if (!p) return;
+
+      document.getElementById('playerName').innerText = p.name;
+      document.getElementById('playerFlag').innerText = p.flag;
+      document.getElementById('playerAvatar').innerText = p.avatar;
+      document.getElementById('playerBio').innerText = `${p.rank} • ${p.hand}`;
+      document.getElementById('playerSpinBadge').innerText = p.spinProfile;
+      document.getElementById('playerDescription').innerText = p.bio;
+      document.getElementById('kpiTournamentBadge').innerText = p.tournament;
+
+      const total = p.serves.length;
+      const aces = p.serves.filter(s => s.result === 'ACE').length;
+
+      document.getElementById('kpiTotalServes').innerText = total;
+      document.getElementById('kpi1stIn').innerText = `${p.firstServeInPct}%`;
+      document.getElementById('kpiAceRate').innerText = `${p.aceRate}%`;
+      document.getElementById('kpiAceCount').innerText = `${aces} aces`;
+      document.getElementById('kpiDfRate').innerText = `${p.dfRate}%`;
+
+      document.getElementById('kpi1stSpin').innerText = `${p.spin1st.toLocaleString()}`;
+      document.getElementById('kpi2ndSpin').innerText = `${p.spin2nd.toLocaleString()}`;
+
+      const diff = p.spin2nd - 2400;
+      document.getElementById('spinVsBenchmarkText').innerText = `${diff >= 0 ? '+' : ''}${diff} RPM`;
+      document.getElementById('spinValKick').innerText = `${p.spin2nd.toLocaleString()} RPM`;
+      document.getElementById('barKickSpin').style.width = `${Math.min(100, (p.spin2nd / 3200) * 100)}%`;
+
+      const isMPH = currentUnit === 'MPH';
+      const mult = isMPH ? 1 : 1.60934;
+      const unitLabel = isMPH ? 'MPH' : 'KM/H';
+
+      document.getElementById('kpiMaxSpeed').innerText = Math.round(p.maxSpeed * mult);
+      document.getElementById('kpiMaxSpeedUnit').innerText = unitLabel;
+
+      document.getElementById('kpiAvg1stSpeed').innerText = Math.round(p.baseSpeed1st * mult);
+      document.getElementById('kpiAvg1stSpeedUnit').innerText = unitLabel;
+
+      document.getElementById('totalServeCount').innerText = total;
+
+      updateZoneBreakdownStats();
+      updateChartsData(p);
+      renderCourt();
+    }
+
+    function updateZoneBreakdownStats() {
+      const filtered = getFilteredServes();
+      const total = filtered.length || 1;
+
+      const tCount = filtered.filter(s => s.zone === 'T').length;
+      const bodyCount = filtered.filter(s => s.zone === 'BODY').length;
+      const wideCount = filtered.filter(s => s.zone === 'WIDE').length;
+
+      const pctT = Math.round((tCount / total) * 100);
+      const pctBody = Math.round((bodyCount / total) * 100);
+      const pctWide = Math.round((wideCount / total) * 100);
+
+      document.getElementById('barZoneT').style.width = `${pctT}%`;
+      document.getElementById('barZoneBody').style.width = `${pctBody}%`;
+      document.getElementById('barZoneWide').style.width = `${pctWide}%`;
+
+      document.getElementById('pctZoneT').innerText = `${pctT}%`;
+      document.getElementById('pctZoneBody').innerText = `${pctBody}%`;
+      document.getElementById('pctZoneWide').innerText = `${pctWide}%`;
+
+      if (chartZonePieInstance) {
+        chartZonePieInstance.data.datasets[0].data = [tCount, bodyCount, wideCount];
+        chartZonePieInstance.update();
+      }
+    }
+
+    function updateChartsData(player) {
+      const serves1st = player.serves.filter(s => s.type === '1st');
+      const serves2nd = player.serves.filter(s => s.type === '2nd');
+
+      const counts1st = [0,0,0,0,0,0,0];
+      const counts2nd = [0,0,0,0,0,0,0];
+
+      serves1st.forEach(s => {
+        const spd = s.speedMPH;
+        if (spd < 90) counts1st[0]++;
+        else if (spd < 100) counts1st[1]++;
+        else if (spd < 110) counts1st[2]++;
+        else if (spd < 120) counts1st[3]++;
+        else if (spd < 130) counts1st[4]++;
+        else if (spd < 140) counts1st[5]++;
+        else counts1st[6]++;
+      });
+
+      serves2nd.forEach(s => {
+        const spd = s.speedMPH;
+        if (spd < 90) counts2nd[0]++;
+        else if (spd < 100) counts2nd[1]++;
+        else if (spd < 110) counts2nd[2]++;
+        else if (spd < 120) counts2nd[3]++;
+        else if (spd < 130) counts2nd[4]++;
+        else if (spd < 140) counts2nd[5]++;
+        else counts2nd[6]++;
+      });
+
+      if (chartSpeedHistInstance) {
+        chartSpeedHistInstance.data.datasets[0].data = counts1st;
+        chartSpeedHistInstance.data.datasets[1].data = counts2nd;
+        chartSpeedHistInstance.update();
+      }
+    }
+
+    function openAddServeModal() {
+      const p = PLAYER_PROFILES[selectedPlayerKey];
+      document.getElementById('modalPlayerName').value = p.name;
+      document.getElementById('addServeModal').classList.remove('hidden');
+    }
+
+    function closeAddServeModal() {
+      document.getElementById('addServeModal').classList.add('hidden');
+    }
+
+    function toggleModalFields() {
+      const genType = document.getElementById('modalGenType').value;
+      const isSingle = genType === 'SINGLE';
+      
+      document.getElementById('singleTypeContainer').classList.toggle('hidden', !isSingle);
+      document.getElementById('singleFieldsContainer').classList.toggle('hidden', !isSingle);
+    }
+
+    function submitAddServe() {
+      const genType = document.getElementById('modalGenType').value;
+      const p = PLAYER_PROFILES[selectedPlayerKey];
+
+      if (genType === 'BULK') {
+        for (let i = 0; i < 50; i++) {
+          const is1st = Math.random() < 0.68;
+          const side = Math.random() < 0.5 ? 'DEUCE' : 'AD';
+          const targetX = side === 'DEUCE' ? 0.35 : 0.65;
+
+          p.serves.push({
+            id: p.serves.length + 1,
+            type: is1st ? '1st' : '2nd',
+            side: side,
+            zone: Math.random() < 0.5 ? 'T' : 'WIDE',
+            result: Math.random() < 0.78 ? 'IN' : 'ACE',
+            x: Math.max(0.05, Math.min(0.95, targetX + randomNormal(0, 0.05))),
+            y: Math.max(0.1, Math.min(0.85, 0.76 + randomNormal(0, 0.04))),
+            speedMPH: Math.round(is1st ? randomNormal(p.baseSpeed1st, 4) : randomNormal(p.baseSpeed2nd, 4)),
+            spinRPM: Math.round(is1st ? randomNormal(p.spin1st, 150) : randomNormal(p.spin2nd, 200)),
+            match: p.tournament
+          });
+        }
+      } else {
+        const side = document.getElementById('modalCourtSide').value;
+        const result = document.getElementById('modalResult').value;
+        const type = document.getElementById('modalServeType').value;
+        const speed = parseInt(document.getElementById('modalSpeed').value) || 128;
+        const spin = parseInt(document.getElementById('modalSpin').value) || 2450;
+
+        p.serves.push({
+          id: p.serves.length + 1,
+          type: type,
+          side: side,
+          zone: 'T',
+          result: result,
+          x: side === 'DEUCE' ? 0.28 : 0.72,
+          y: 0.78,
+          speedMPH: speed,
+          spinRPM: spin,
+          match: p.tournament
+        });
+      }
+
+      closeAddServeModal();
+      updateDashboardData();
+    }
+
+    window.onload = function() {
+      populatePlayerDropdown();
+      initCharts();
+      updatePlayerChips();
+      resizeCanvas();
+      setupCanvasInteractions();
+
+      window.addEventListener('resize', resizeCanvas);
+      updateDashboardData();
+    };
+  </script>
+</body>
+</html>
